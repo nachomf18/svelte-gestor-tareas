@@ -141,6 +141,14 @@
         background-color: #c82333;
         transform: scale(1.05);
     }
+
+    .tareaSinTerminar {
+        user-select: none;
+    }
+
+    .lista {
+        transition: background-color 0.2s ease;
+    }
 </style>
 
 <script>
@@ -148,6 +156,8 @@
     import { flip } from 'svelte/animate';
 
     const tareas = $state([]);
+    let draggedTarea = $state(null);
+    let dragOverTarea = $state(null);
 
     function updateStorage() {
         localStorage.setItem("tareas", JSON.stringify(tareas));
@@ -173,6 +183,53 @@
             updateStorage();
             inputTarea.value = "";
         }
+    }
+
+    function dragStart(e, tarea) {
+        draggedTarea = tarea;
+    }
+
+    function dragOver(e) {
+        e.preventDefault();
+    }
+
+    function dragEnter(e, tarea) {
+        dragOverTarea = tarea;
+    }
+
+    function dragLeave() {
+        dragOverTarea = null;
+    }
+
+    function dropSinTerminar(e) {
+        e.preventDefault();
+        if (!draggedTarea) return;
+
+        const indexTarea = tareas.indexOf(draggedTarea);
+
+        if (indexTarea === -1) return;
+        tareas.splice(indexTarea, 1);
+
+        const newIndex = dragOverTarea ? tareas.indexOf(dragOverTarea) : tareas.length;
+        draggedTarea.completada = false;
+        tareas.splice(newIndex, 0, draggedTarea);
+
+        updateStorage();
+        draggedTarea = null;
+        dragOverTarea = null;
+    }
+
+    function dropTerminada(e) {
+        e.preventDefault();
+        if (!draggedTarea) return;
+
+        const index = tareas.indexOf(draggedTarea);
+        if (index !== -1) {
+            tareas[index].completada = true;
+            updateStorage();
+        }
+        draggedTarea = null;
+        dragOverTarea = null;
     }
 
     function tareaCompletada(e, tarea) {
@@ -214,11 +271,22 @@
 </div>
 
 <div id="wrapper">
-    <div id="tareas_sin_terminar" class="lista">
+    <div id="tareas_sin_terminar" 
+         class="lista"
+         ondragover={dragOver}
+         ondrop={(e) => dropSinTerminar(e)}
+         role="list">
         <h2>Tareas pendientes</h2>
         <hr>
         {#each tareas.filter(t => !t.completada) as tarea, index (tarea)}
-            <div class="tareaSinTerminar" animate:flip={{duration: 300}}>
+            <div class="tareaSinTerminar" 
+                 animate:flip={{duration: 300}}
+                 draggable="true"
+                 ondragstart={(e) => dragStart(e, tarea)}
+                 ondragenter={(e) => dragEnter(e, tarea)}
+                 ondragleave={dragLeave}
+                 style={draggedTarea === tarea ? 'opacity: 0.7;' : dragOverTarea === tarea ? 'background-color: #e3f2fd; border: 2px dashed #667eea; cursor: grab;' : 'cursor: grab;'}
+                 role="listitem">
                 <div class="accionesPrioridad">
                 {#if index > 0}
                     <button onclick={(e) => moverPrioridad(e, tarea, -1)}>⬆️</button>
@@ -237,7 +305,11 @@
         {/each}
     </div>
     
-    <div id="tareas_terminadas" class="lista">
+    <div id="tareas_terminadas" 
+         class="lista"
+         ondragover={dragOver}
+         ondrop={(e) => dropTerminada(e)}
+         role="list">
         <h2>Tareas completadas</h2>
         <hr>
         {#each tareas.filter(t => t.completada) as tarea, index}
